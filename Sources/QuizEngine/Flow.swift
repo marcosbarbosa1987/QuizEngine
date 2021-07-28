@@ -7,30 +7,24 @@
 
 import Foundation
 
-protocol Router {
-    associatedtype Question: Hashable
-    associatedtype Answer
-    
-    func routerTo(question: Question, answerCallback: @escaping (Answer) -> Void)
-    func routerTo(result: [Question: Answer])
-}
-
 class Flow <Question: Hashable, Answer, R: Router> where R.Question == Question, R.Answer == Answer {
     
     private let router: R
     private let questions: [Question]
-    private var result: [Question: Answer] = [:]
+    private var answers: [Question: Answer] = [:]
+    private var scoring: ([Question: Answer]) -> Int
     
-    init(questions: [Question], router: R) {
+    init(questions: [Question], router: R, scoring: @escaping([Question: Answer]) -> Int) {
         self.questions = questions
         self.router = router
+        self.scoring = scoring
     }
     
     func start() {
         if let firstQuestion = questions.first {
             router.routerTo(question: firstQuestion, answerCallback: nextCallback(from: firstQuestion))
         } else {
-            router.routerTo(result: result)
+            router.routerTo(result: result())
         }
     }
     
@@ -43,15 +37,19 @@ class Flow <Question: Hashable, Answer, R: Router> where R.Question == Question,
     
     private func routeNext(_ question: Question, _ answer: Answer) {
         if let currentQuestionIndex = questions.firstIndex(of: question) {
-            result[question] = answer
+            answers[question] = answer
             let nextQuestionIndex = currentQuestionIndex+1
             
             if  nextQuestionIndex < questions.count {
                 let nextQuestion = questions[nextQuestionIndex]
                 router.routerTo(question: nextQuestion, answerCallback: nextCallback(from: nextQuestion))
             } else {
-                router.routerTo(result: result)
+                router.routerTo(result: result())
             }
         }
+    }
+    
+    private func result() -> Result<Question, Answer> {
+        return Result(answers: answers, score: scoring(answers))
     }
 }
